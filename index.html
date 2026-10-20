@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deploy Simples: Gerando e Assinando seu APK</title>
+    <style>
+        :root {
+            --ink: #14171C;
+            --ink-soft: #1F242C;
+            --ink-line: #2B313B;
+            --bg: #EEF1F5;
+            --surface: #FFFFFF;
+            --line: #E2E6EB;
+            --text: #1B1E23;
+            --text-muted: #5B6470;
+            --api-color: #2D6A4F;
+            --arch-color: #2F6FED;
+            --async-color: #0D9488;
+            --fix-color: #C97A0F;
+            --code-bg: #0F1115;
+            --code-text: #D6DEE7;
+            --code-comment: #7A9F6E;
+            --focus-ring: #2F6FED;
+            --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: var(--font-sans); line-height: 1.6; margin: 0; padding: 0; background-color: var(--bg); color: var(--text); }
+        a:focus-visible, button:focus-visible, .step-nav-link:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+        .kw-ok { color: var(--api-color); font-weight: 700; }
+        .kw-fix { color: var(--fix-color); font-weight: 700; }
+        strong { color: #000000; font-weight: 700; }
+        code { font-family: var(--font-mono); background: #E7EAEF; padding: 1px 6px; border-radius: 4px; font-size: 0.88em; }
+        pre code { background: none; padding: 0; border-radius: 0; font-size: inherit; color: inherit; }
+
+        header { background: var(--ink); padding: 3rem 1.2rem 2.6rem; }
+        .editor-window { max-width: 720px; margin: 0 auto; background: var(--ink-soft); border-radius: 10px; border: 1px solid var(--ink-line); overflow: hidden; }
+        .editor-titlebar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #101317; border-bottom: 1px solid var(--ink-line); }
+        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .dot.d-ok { background: var(--api-color); }
+        .dot.d-fix { background: var(--fix-color); }
+        .dot.d-async { background: var(--async-color); }
+        .editor-titlebar .filename { margin-left: 8px; font-family: var(--font-mono); font-size: 0.8rem; color: #7D8590; }
+        .editor-body { padding: 2.2rem 2rem 2.4rem; text-align: left; }
+        .editor-body .comment-line { font-family: var(--font-mono); font-size: 0.85rem; color: var(--code-comment); margin: 0 0 1rem 0; }
+        header h1 { margin: 0; font-size: 2.1rem; letter-spacing: -0.5px; font-weight: 700; color: #EDEFF2; transform: translateZ(0); }
+        header p.subtitle { font-size: 1.05rem; color: #AEB6C2; margin: 0.7rem 0 0 0; max-width: 56ch; }
+
+        nav { background: var(--ink); padding: 0.7rem 1rem; position: sticky; top: 0; border-bottom: 1px solid var(--ink-line); z-index: 100; }
+        .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: nowrap; gap: 1rem; }
+        .nav-brand { font-family: var(--font-mono); font-weight: 600; color: #7D8590; font-size: 0.85rem; white-space: nowrap; padding-top: 0.5rem; margin-right: 0.4rem; }
+        .nav-links { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+        .nav-links::-webkit-scrollbar { display: none; }
+        nav a.step-nav-link { display: inline-flex; align-items: center; gap: 6px; color: #C7CDD6; text-decoration: none; font-weight: 600; font-size: 0.84rem; white-space: nowrap; padding: 0.5rem 0.6rem; border-radius: 6px; transition: all 0.15s ease; border-bottom: 2px solid transparent; }
+        nav a.step-nav-link .nav-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.6; }
+        nav a.step-nav-link:hover { color: #FFFFFF; background: rgba(255,255,255,0.06); }
+        nav a.step-nav-link.active { color: #FFFFFF; border-bottom-color: currentColor; }
+        nav a.step-nav-link.active .nav-dot { opacity: 1; }
+        .nav-toggle { display: none; background: none; border: 1px solid var(--ink-line); color: #C7CDD6; border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 1rem; cursor: pointer; font-family: var(--font-sans); }
+
+        main { max-width: 980px; margin: 2.2rem auto; padding: 0 1.5rem; }
+        section { background: var(--surface); padding: 2.3rem 2.3rem 2.3rem 2rem; border-radius: 8px; margin-bottom: 1.6rem; border: 1px solid var(--line); border-left: 4px solid var(--text-muted); scroll-margin-top: 76px; }
+        section.acc-ok { border-left-color: var(--api-color); }
+        section.acc-fix { border-left-color: var(--fix-color); }
+        section.acc-async { border-left-color: var(--async-color); }
+        section.acc-neutral { border-left-color: #A9B1BC; }
+
+        .file-tag { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+        h2 { font-size: 1.55rem; color: #14171C; margin-top: 0; margin-bottom: 1.3rem; font-weight: 700; letter-spacing: -0.3px; }
+        h3 { font-size: 1.18rem; color: #2A2E34; margin-top: 1.7rem; font-weight: 700; }
+        p, li { max-width: none; }
+
+        .data-table { width: 100%; border-collapse: collapse; margin: 1.2rem 0; font-size: 0.92rem; }
+        .data-table th, .data-table td { border: 1px solid var(--line); padding: 0.7rem 0.9rem; text-align: left; vertical-align: top; }
+        .data-table th { background: #F7F9FC; color: var(--arch-color); font-weight: 700; }
+
+        ul { padding-left: 1.2rem; }
+        li { margin-bottom: 0.6rem; }
+
+        .step-box { background-color: #FAFBFC; border: 1px solid var(--line); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.8rem; scroll-margin-top: 76px; }
+        .step-box h3 { margin-top: 0; color: var(--text); display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.4rem; }
+        .step-progress { font-family: var(--font-mono); font-size: 0.74rem; font-weight: 600; color: var(--text-muted); background: #EEF1F5; padding: 0.2rem 0.6rem; border-radius: 4px; }
+
+        .checklist { background: #F3F9F6; border: 1px solid #CDE9DE; border-left: 4px solid var(--api-color); border-radius: 8px; padding: 1.5rem 1.8rem; margin-top: 1.5rem; }
+        .checklist h3 { color: #0D7A5F; margin-top: 0; }
+        .checklist ul { list-style: none; padding-left: 0; }
+        .checklist li { padding-left: 1.8rem; position: relative; }
+        .checklist li::before { content: "✓"; position: absolute; left: 0; color: #0D7A5F; font-weight: 700; }
+
+        .tip-box { background: #EAF1FE; border-left: 4px solid var(--arch-color); padding: 1rem 1.3rem; border-radius: 6px; margin: 1.2rem 0; font-size: 0.95rem; }
+        .tip-box strong { color: #14458C; }
+        .warn-box { background: #FDECEA; border-left: 4px solid #C0392B; padding: 1rem 1.3rem; border-radius: 6px; margin: 1.2rem 0; font-size: 0.95rem; }
+        .warn-box strong { color: #A31D03; }
+
+        .erro-item { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 1.2rem; overflow: hidden; }
+        .erro-titulo { background: #FDECEA; padding: 0.8rem 1.1rem; font-family: var(--font-mono); font-size: 0.85rem; color: #A31D03; font-weight: 700; border-bottom: 1px solid var(--line); }
+        .erro-corpo { padding: 1.1rem 1.3rem; font-size: 0.95rem; }
+        .erro-corpo p { margin-top: 0; }
+        .erro-corpo p:last-child { margin-bottom: 0; }
+
+        .terminal-window { background: var(--ink-soft); border-radius: 10px; border: 1px solid var(--ink-line); overflow: hidden; }
+        .terminal-titlebar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #101317; border-bottom: 1px solid var(--ink-line); }
+        .terminal-titlebar .filename { margin-left: 8px; font-family: var(--font-mono); font-size: 0.8rem; color: #7D8590; }
+        .terminal-body { padding: 2rem 2.2rem 2.3rem; font-family: var(--font-mono); }
+        .term-line { color: #9AA4B2; margin: 0 0 0.4rem 0; font-size: 0.92rem; }
+        .term-prompt { color: var(--api-color); font-weight: 700; margin-right: 8px; }
+        .term-output { color: #C7CDD6; font-family: var(--font-sans); font-size: 0.95rem; line-height: 1.6; margin: 0.6rem 0 1.6rem 0; }
+        .term-cta { display: inline-flex; align-items: center; gap: 8px; color: var(--api-color); text-decoration: none; font-weight: 700; font-size: 1rem; padding: 0.5rem 0; border-bottom: 1px solid transparent; }
+        .term-cta:hover { border-bottom-color: var(--api-color); }
+        .cta-meta { margin-top: 1rem; font-size: 0.85rem; color: #7D8590; font-family: var(--font-sans); }
+
+        footer { text-align: center; padding: 2.6rem; background: var(--ink); color: #7D8590; font-size: 0.88rem; }
+        .cta-section { border: none; padding: 0; background: transparent; }
+
+        @media (max-width: 860px) {
+            header h1 { font-size: 1.6rem; }
+            .nav-toggle { display: inline-flex; }
+            .nav-links { display: none; width: 100%; flex-direction: column; align-items: stretch; overflow-x: visible; margin-top: 0.6rem; }
+            .nav-links.open { display: flex; }
+            .nav-inner { flex-wrap: wrap; gap: 0.4rem; }
+            .nav-brand { padding-top: 0; }
+            section { padding: 1.6rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="editor-window">
+            <div class="editor-titlebar">
+                <span class="dot d-ok"></span><span class="dot d-fix"></span><span class="dot d-async"></span>
+                <span class="filename">build/release.md</span>
+            </div>
+            <div class="editor-body">
+                <p class="comment-line">// guia de aula — Assinatura Digital, Build de Release e Deploy Simples</p>
+                <h1>Deploy Simples: Gerando e Assinando seu APK</h1>
+                <p class="subtitle">Transformando o projeto que roda no emulador em um aplicativo de verdade, instalável no seu próprio celular.</p>
+            </div>
+        </div>
+    </header>
+
+    <nav>
+        <div class="nav-inner">
+            <span class="nav-brand">deploy/</span>
+            <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="navLinks">Menu</button>
+            <div class="nav-links" id="navLinks">
+                <a class="step-nav-link" href="#intro"><span class="nav-dot"></span>Debug vs Release</a>
+                <a class="step-nav-link" href="#assinatura"><span class="nav-dot"></span>Assinatura</a>
+                <a class="step-nav-link" href="#gerando"><span class="nav-dot"></span>Gerando o APK</a>
+                <a class="step-nav-link" href="#instalando"><span class="nav-dot"></span>Instalando</a>
+                <a class="step-nav-link" href="#playstore"><span class="nav-dot"></span>Play Console</a>
+                <a class="step-nav-link" href="#erros"><span class="nav-dot"></span>Erros Comuns</a>
+                <a class="step-nav-link" href="#atividade-cta"><span class="nav-dot"></span>Atividade</a>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+
+        <section id="intro" class="acc-neutral">
+            <div class="file-tag">00_contexto.md</div>
+            <h2>Build de Debug vs. Build de Release</h2>
+            <p>Toda vez que vocês clicaram em ▶ <strong>Run</strong> no Android Studio ao longo do ano, o Android Studio gerou um <strong>build de debug</strong>: um APK assinado automaticamente com uma chave genérica (a <em>debug keystore</em>), que o próprio Android Studio cria e gerencia sem perguntar nada. Ela existe só para permitir testes rápidos no emulador ou no celular conectado por cabo — e, por isso, o Android <strong>recusa</strong> instalar esse tipo de build fora de um ambiente de desenvolvimento.</p>
+            <p>Um <strong>build de release</strong> é diferente: é o pacote final, otimizado e assinado com uma chave que <em>vocês</em> criam e controlam — a mesma chave que vai identificar o app para sempre, inclusive em futuras atualizações. É esse tipo de build que se instala "de verdade" num celular, fora do Android Studio, e é o único tipo aceito pela Google Play Store.</p>
+            <table class="data-table">
+                <thead><tr><th></th><th>Debug</th><th>Release</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Chave de assinatura</strong></td><td>Gerada automaticamente pelo Android Studio</td><td>Criada por vocês (<code>.jks</code>), guardada com senha</td></tr>
+                    <tr><td><strong>Otimização de código</strong></td><td>Nenhuma — compila rápido para testar</td><td>R8/ProGuard remove código não usado e ofusca nomes</td></tr>
+                    <tr><td><strong>Instala fora do Android Studio?</strong></td><td>Não, por padrão</td><td>Sim</td></tr>
+                    <tr><td><strong>Aceito pela Play Store?</strong></td><td>Não</td><td>Sim (como <code>.aab</code>)</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="assinatura" class="acc-ok">
+            <div class="file-tag">01_assinatura.md</div>
+            <h2>Assinatura Digital: a Identidade do seu App</h2>
+            <p>Toda chave de release é um arquivo <strong>keystore</strong> (extensão <code>.jks</code> ou <code>.keystore</code>) — um certificado digital que funciona como a "impressão digital" permanente do seu app. O Android usa essa assinatura para duas garantias importantes:</p>
+            <ul>
+                <li><strong>Autenticidade:</strong> provar que uma atualização do app realmente veio de quem publicou a versão original (e não de alguém se passando por vocês).</li>
+                <li><strong>Continuidade:</strong> permitir que o sistema reconheça uma nova versão como "a mesma app", preservando dados do usuário (como preferências salvas) entre atualizações.</li>
+            </ul>
+            <div class="warn-box"><strong>Por que isso é sério:</strong> se vocês perderem a keystore de um app publicado, <strong>não existe forma de recuperá-la</strong> — nem a própria Google consegue restaurar. A única opção seria publicar o app como um produto totalmente novo, perdendo todo o histórico de instalações e avaliações. É por isso que, no mercado, a keystore de um app em produção é tratada como uma credencial crítica: guardada em cofre de senhas da empresa, nunca enviada por e-mail ou commitada no Git.</div>
+        </section>
+
+        <section id="gerando" class="acc-fix">
+            <div class="file-tag">02_build.md</div>
+            <h2>Passo a Passo: Gerando um APK Assinado</h2>
+
+            <div class="step-box">
+                <h3>Passo 1 — Abrir o assistente de build <span class="step-progress">1/5</span></h3>
+                <p>No menu superior do Android Studio: <strong>Build → Generate Signed Bundle / APK...</strong></p>
+            </div>
+
+            <div class="step-box">
+                <h3>Passo 2 — Escolher o formato <span class="step-progress">2/5</span></h3>
+                <p>Selecione <strong>APK</strong> (não Android App Bundle). O AAB é o formato que a Play Store exige para publicação — mas para instalar diretamente no seu celular, sem passar pela loja, o APK é o caminho direto. Clique em <strong>Next</strong>.</p>
+            </div>
+
+            <div class="step-box">
+                <h3>Passo 3 — Criar a keystore <span class="step-progress">3/5</span></h3>
+                <p>Clique em <strong>Create new...</strong>. Preencha:</p>
+                <ul>
+                    <li><strong>Key store path:</strong> onde salvar o arquivo <code>.jks</code> (escolham uma pasta fora do projeto — ela não deve ir para o Git).</li>
+                    <li><strong>Password:</strong> uma senha para o arquivo da keystore.</li>
+                    <li><strong>Alias</strong> e <strong>Password</strong> da chave em si (pode repetir a mesma senha).</li>
+                    <li><strong>Validity (years):</strong> deixe pelo menos 25 — a Google recomenda validade além de 2033.</li>
+                    <li>Dados do certificado (nome, organização): podem ser fictícios para fins de aula, mas preenchidos.</li>
+                </ul>
+                <div class="warn-box"><strong>Anote a senha agora:</strong> sem ela, vocês não conseguem gerar uma nova versão assinada com a mesma identidade depois.</div>
+            </div>
+
+            <div class="step-box">
+                <h3>Passo 4 — Escolher a variante <span class="step-progress">4/5</span></h3>
+                <p>Marque <strong>release</strong> (não <em>debug</em>). Se aparecerem checkboxes de <code>V1</code> e <code>V2</code> (Signature Versions), deixe ambas marcadas — são dois esquemas de verificação de assinatura, e manter os dois garante compatibilidade com versões mais antigas do Android.</p>
+            </div>
+
+            <div class="step-box">
+                <h3>Passo 5 — Localizar o APK gerado <span class="step-progress">5/5</span></h3>
+                <p>Ao final, o Android Studio mostra uma notificação com um link <strong>locate</strong>. O arquivo fica em <code>app/release/app-release.apk</code> dentro da pasta do projeto.</p>
+            </div>
+        </section>
+
+        <section id="instalando" class="acc-async">
+            <div class="file-tag">03_instalacao.md</div>
+            <h2>Instalando no Próprio Celular</h2>
+            <p>Transfiram o arquivo <code>app-release.apk</code> para o celular (cabo USB, Google Drive, ou qualquer forma de transferência) e toquem nele pelo gerenciador de arquivos do Android para instalar.</p>
+            <div class="tip-box"><strong>Google Play Protect vai alertar — e está certo em fazer isso.</strong> Como o app não veio da Play Store, o Android mostra um aviso de segurança antes de instalar. É o comportamento esperado para qualquer APK instalado "por fora" (chamado de <em>sideloading</em>); confirmem a instalação mesmo assim, já que é o próprio app de vocês.</div>
+        </section>
+
+        <section id="playstore" class="acc-neutral">
+            <div class="file-tag">04_play_console.md</div>
+            <h2>Visão Geral do Google Play Console</h2>
+            <p>Não vamos publicar nenhum app na Play Store nesta etapa — mas vale conhecer o caminho que um app percorre depois do APK/AAB assinado, porque é o destino natural de qualquer projeto real:</p>
+            <ol>
+                <li>Criar uma conta de desenvolvedor no <strong>Google Play Console</strong> (taxa única de cadastro).</li>
+                <li>Criar uma nova "aplicação" e preencher a ficha da loja (nome, descrição, capturas de tela, ícone, política de privacidade).</li>
+                <li>Fazer upload do <code>.aab</code> (não do <code>.apk</code> — a Play Store exige o Bundle, que ela mesma converte em APKs otimizados por tipo de dispositivo).</li>
+                <li>Passar pela revisão de conteúdo e políticas da Google antes de ficar público.</li>
+            </ol>
+        </section>
+
+        <section id="erros" class="acc-fix">
+            <div class="file-tag">99_erros_comuns.md</div>
+            <h2>Erros Comuns</h2>
+
+            <div class="erro-item">
+                <div class="erro-titulo">App not installed as package conflicts with an existing package</div>
+                <div class="erro-corpo">
+                    <p><strong>Causa:</strong> já existe, no celular, uma versão de <strong>debug</strong> do mesmo app instalada (via ▶ Run) — e ela foi assinada com uma chave diferente da keystore de release.</p>
+                    <p><strong>Solução:</strong> desinstalem a versão de debug do celular antes de instalar o APK de release. O Android não permite duas versões do mesmo pacote com assinaturas diferentes coexistindo.</p>
+                </div>
+            </div>
+
+            <div class="erro-item">
+                <div class="erro-titulo">O app instala e roda no emulador (debug), mas trava ao abrir na versão release</div>
+                <div class="erro-corpo">
+                    <p><strong>Causa:</strong> o R8 (o otimizador/ofuscador que só roda no build de release) removeu ou renomeou classes que o Gson/Retrofit precisa encontrar pelo nome exato para converter o JSON — geralmente as <code>data class</code> do modelo.</p>
+                    <p><strong>Solução:</strong> adicionem regras de manutenção no arquivo <code>proguard-rules.pro</code> para as classes de modelo, por exemplo <code>-keep class com.rclepf.pokedexnovo.data.** { *; }</code>, substituindo pelo pacote de dados do projeto de vocês.</p>
+                </div>
+            </div>
+
+            <div class="erro-item">
+                <div class="erro-titulo">Esqueci a senha da keystore</div>
+                <div class="erro-corpo">
+                    <p><strong>Causa:</strong> não há recuperação — é assim por design, para que ninguém além de quem tem a senha consiga gerar uma versão "autêntica" do app.</p>
+                    <p><strong>Solução para esta disciplina:</strong> gerem uma nova keystore e um novo build — para fins de avaliação, não há histórico de usuários reais em jogo. Anotem a senha desta vez num lugar seguro.</p>
+                </div>
+            </div>
+
+            <div class="erro-item">
+                <div class="erro-titulo">A opção "Android App Bundle" está cinza/desabilitada no assistente</div>
+                <div class="erro-corpo">
+                    <p><strong>Causa:</strong> normalmente não é um erro — é só a seleção padrão já estar em "APK", que é o formato certo para o que esta aula pede (instalação direta no celular).</p>
+                    <p><strong>Solução:</strong> nenhuma ação necessária; sigam com APK. O AAB só é obrigatório no momento de publicar na Play Store de verdade.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="atividade-cta" class="cta-section">
+            <div class="terminal-window">
+                <div class="terminal-titlebar">
+                    <span class="dot d-ok"></span><span class="dot d-fix"></span><span class="dot d-async"></span>
+                    <span class="filename">~/proxima-missao</span>
+                </div>
+                <div class="terminal-body">
+                    <p class="term-line"><span class="term-prompt">$</span> cat proxima_missao.md</p>
+                    <p class="term-output">Gerem a keystore e o APK assinado do Projeto Final, instalem no próprio celular e registrem o processo com capturas de tela. É o mesmo caminho que qualquer app em produção percorre antes de chegar num usuário real.</p>
+                    <p class="term-line"><span class="term-prompt">$</span></p>
+                    <a class="term-cta" href="Atividade_Deploy_Release.pdf" download>./baixar-atividade.pdf ↵</a>
+                    <p class="cta-meta">O PDF contém a missão completa, os requisitos obrigatórios e a rubrica de correção.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer>
+        Desenvolvimento Android Moderno &copy; 2026 · Assinatura Digital, Build de Release e Deploy Simples
+    </footer>
+
+    <script>
+        function copyCode(btn) {
+            const pre = btn.closest('.code-container').querySelector('pre');
+            navigator.clipboard.writeText(pre.innerText).then(() => {
+                const original = btn.textContent;
+                btn.textContent = 'Copiado!';
+                setTimeout(() => { btn.textContent = original; }, 1500);
+            });
+        }
+        const navToggle = document.getElementById('navToggle');
+        const navLinks = document.getElementById('navLinks');
+        navToggle.addEventListener('click', () => {
+            const isOpen = navLinks.classList.toggle('open');
+            navToggle.setAttribute('aria-expanded', isOpen);
+        });
+        const sections = document.querySelectorAll('main > section');
+        const links = document.querySelectorAll('.step-nav-link');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.getAttribute('id');
+                    links.forEach(link => {
+                        link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+                    });
+                }
+            });
+        }, { rootMargin: '-45% 0px -50% 0px' });
+        sections.forEach(sec => observer.observe(sec));
+    </script>
+
+</body>
+</html>
